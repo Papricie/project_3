@@ -17,3 +17,8 @@ oddelovac = "-" * 50
 
 ################################### KÓD #######################################
 
+import sys
+import requests
+from bs4 import BeautifulSoup
+
+
