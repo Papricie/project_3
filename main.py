@@ -16,7 +16,7 @@ oddelovac = "-" * 50
 import sys
 import requests
 from bs4 import BeautifulSoup
-import pandas
+import pandas as pd
 # -----------------------------------------------------------------------------
 # VALIDACE ARGUMENTŮ
 def validate_args(args):
@@ -58,8 +58,7 @@ def get_obec_data(url):
     soup = BeautifulSoup(response.text, "html.parser")
 
     # Název a kód obce
-    obec_info = soup.find("h3").text.strip()  # např. "Obec: Benešov (529303)"
-    # Rozdělit podle dvojtečky a závorky
+    obec_info = soup.find("h3").text.strip()
     casti = obec_info.replace("Obec:", "").strip().split("(")
     nazev_obce = casti[0].strip()
     kod_obce = casti[1].replace(")", "").strip()
@@ -89,8 +88,31 @@ def get_obec_data(url):
         **vysledky_stran
     }
 
-obec_url = "https://www.volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xobec=532771&xvyber=2101"
-data = get_obec_data(obec_url)
-print(data)
- 
-        
+# HLAVNÍ FUNKCE
+def main():
+    if not validate_args(sys.argv):
+        return
+
+    url = sys.argv[1]
+    output_file = sys.argv[2]
+
+    print("Stahuji odkazy na obce...")
+    obce_links = get_obce_links(url)
+
+    print(f"Nalezeno {len(obce_links)} obcí. Zpracovávám data...")
+
+    data = []
+    for link in obce_links:
+        obec_data = get_obec_data(link)
+        if obec_data:
+            data.append(obec_data)
+
+    # Uložit do CSV
+    df = pd.DataFrame(data)
+    df.to_csv(output_file, index=False, encoding="utf-8-sig")
+
+    print(f"Hotovo! Výsledky uloženy do souboru: {output_file}")
+
+# SPUŠTĚNÍ
+if __name__ == "__main__":
+    main()
