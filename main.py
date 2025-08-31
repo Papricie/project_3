@@ -17,6 +17,7 @@ import sys
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+import time
 # -----------------------------------------------------------------------------
 # VALIDACE ARGUMENTŮ
 def validate_args(args):
@@ -48,7 +49,7 @@ def get_obce_links(url):
 
     return links
 # -----------------------------------------------------------------------------
-# ZÍSKÁNÍ DAT O JEDNÉ OBCI
+# ZÍSKÁNÍ DAT O JEDNÉ OBCI - OPRAVENO
 def get_obec_data(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -61,12 +62,16 @@ def get_obec_data(url):
     obec_info = soup.find("h3").text.strip()
     casti = obec_info.replace("Obec:", "").strip().split("(")
     nazev_obce = casti[0].strip()
-    kod_obce = casti[1].replace(")", "").strip()
+    kod_obce = casti[1].replace(")", "").strip() if len(casti) > 1 else ""
 
-    # Základní statistiky
-    volici = soup.find("td", {"headers": "sa2"}).text.strip().replace("\xa0", "")
-    obalky = soup.find("td", {"headers": "sa3"}).text.strip().replace("\xa0", "")
-    platne_hlasy = soup.find("td", {"headers": "sa6"}).text.strip().replace("\xa0", "")
+    # Základní statistiky s kontrolou, zda existují
+    def get_td_text(header):
+        td = soup.find("td", {"headers": header})
+        return td.text.strip().replace("\xa0", "") if td else ""
+
+    volici = get_td_text("sa2")
+    obalky = get_td_text("sa3")
+    platne_hlasy = get_td_text("sa6")
 
     # Hlasy pro strany
     strany = soup.find_all("td", {"class": "overflow_name"})
@@ -75,7 +80,7 @@ def get_obec_data(url):
     vysledky_stran = {}
     for i, strana in enumerate(strany):
         nazev_strany = strana.text.strip()
-        pocet_hlasu = hlasy[i].text.strip().replace("\xa0", "")
+        pocet_hlasu = hlasy[i].text.strip().replace("\xa0", "") if i < len(hlasy) else ""
         vysledky_stran[nazev_strany] = pocet_hlasu
 
     # Vrátíme jako slovník
@@ -98,20 +103,29 @@ def main():
 
     print("Stahuji odkazy na obce...")
     obce_links = get_obce_links(url)
-
     print(f"Nalezeno {len(obce_links)} obcí. Zpracovávám data...")
 
     data = []
-    for link in obce_links:
+    start_time = time.time()
+
+    for i, link in enumerate(obce_links, start=1):
         obec_data = get_obec_data(link)
         if obec_data:
             data.append(obec_data)
+        
+        # průběžný výpis
+        elapsed = time.time() - start_time
+        avg_time = elapsed / i
+        remaining = avg_time * (len(obce_links) - i)
+        print(f"Zpracováno {i}/{len(obce_links)}: {obec_data['název obce']} | "
+              f"čas od začátku: {elapsed:.1f}s | odhad do konce: {remaining:.1f}s")
 
     # Uložit do CSV
     df = pd.DataFrame(data)
     df.to_csv(output_file, index=False, encoding="utf-8-sig")
-
     print(f"Hotovo! Výsledky uloženy do souboru: {output_file}")
+
+# ------------------------------------------------------------------------------
 
 # SPUŠTĚNÍ
 if __name__ == "__main__":
